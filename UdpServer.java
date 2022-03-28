@@ -3,54 +3,66 @@
 import java.net.*;
 import java.io.*;
 
-public class TcpServer {
-    private static int port = 9876; // TCP port on which the server will be listening
+public class UdpServer {
+    private static int port = 9876; // UDP port on which the server will be listening
     private static int timeout = 20000; // Timeout to close server socket in milliseconds
     private static int bufferSize = 1024; // Server's bytes buffer size
     private static String outputPath = "messageFromClient.txt"; // Path where file from client will be saved
     private byte[] buffer;
 
     public static void main(String args[]) {
-        TcpServer server = new TcpServer();
+        UdpServer server = new UdpServer();
         server.startFileReceiver();
 		// server.startStringReceiver();
     }
 
-    public TcpServer() {
+    public UdpServer() {
         buffer = new byte[bufferSize];
     }
 
     public void startFileReceiver() {
         try {
-            ServerSocket serverSocket = new ServerSocket(port);
+            DatagramSocket serverSocket = new DatagramSocket(port);
             serverSocket.setSoTimeout(timeout);
+
+            // Delete current file if it exists
+            File outputFile = new File(outputPath);
+            outputFile.delete();
 
             while (!serverSocket.isClosed()) {
                 // Wait for client
                 System.out.println("|=== Listening on port " + port + "... ===|");
-                Socket clientSocket = serverSocket.accept();
-
-                // Client has connected to server
-                System.out.print("* Connection received from client on ");
-                System.out.print(clientSocket.getRemoteSocketAddress().toString().substring(1));
+                DatagramPacket receivedPacket = new DatagramPacket(buffer, bufferSize);
+                
+                // Client has sent file to server
+                serverSocket.receive(receivedPacket);
+                System.out.print("* Packet received from client on ");
+                System.out.print(receivedPacket.getAddress().toString().substring(1));
                 System.out.print(" * \n");
 
+                // Count number of null values in buffer
+                int zerosOffset = 0;
+                int i = bufferSize - 1;
+                while (buffer[i] == 0) {
+                    zerosOffset++;
+                    i--;
+                }
+
                 // Read packet from client and write it to a file
-                InputStream inputStream = clientSocket.getInputStream(); // Get packet content sent by client
-                OutputStream fileOutputStream = new FileOutputStream(outputPath);
+                FileOutputStream fileOutputStream = new FileOutputStream(outputFile, true);
+                InputStream inputStream = new ByteArrayInputStream(receivedPacket.getData());
                 int bytesToWrite = inputStream.read(buffer);
 
                 while (bytesToWrite > 0) {
-                    fileOutputStream.write(buffer, 0, bytesToWrite);
+                    fileOutputStream.write(buffer, 0, bytesToWrite - zerosOffset);
                     bytesToWrite = inputStream.read(buffer);
                 }
 
-                System.out.println("* File received from client and saved as: " + outputPath + " *\n");
+                System.out.println("* Packet received with client's file and saved as: " + outputPath + " *\n");
 
                 // Close resources
                 inputStream.close();
                 fileOutputStream.close();
-                clientSocket.close();
             }
 
             serverSocket.close(); // Make sure it's closed
@@ -70,33 +82,32 @@ public class TcpServer {
 
     public void startStringReceiver() {
         try {
-            ServerSocket serverSocket = new ServerSocket(port);
-            serverSocket.setSoTimeout(timeout);
+            DatagramSocket serverSocket = new DatagramSocket(port);
+            serverSocket.setSoTimeout(timeout); // Timeout to close server socket
 
             while (!serverSocket.isClosed()) {
                 // Wait for client
                 System.out.println("|=== Listening on port " + port + "... ===|");
-                Socket clientSocket = serverSocket.accept();
+                DatagramPacket receivedPacket = new DatagramPacket(buffer, bufferSize);
 
-                // Client has connected to server
-                System.out.print("* Connection received from client on ");
-                System.out.print(clientSocket.getRemoteSocketAddress().toString().substring(1));
+                // Client has sent file to server
+                serverSocket.receive(receivedPacket);
+                System.out.print("* Packet received from client on ");
+                System.out.print(receivedPacket.getAddress().toString().substring(1));
                 System.out.print(" * \n");
 
                 // Read string message from client
                 BufferedReader fromClient = new BufferedReader(
-                    new InputStreamReader(clientSocket.getInputStream())
+                    new InputStreamReader(
+                        new ByteArrayInputStream(receivedPacket.getData())
+                    )
                 );
+
                 System.out.print("\nMessage from client:");
                 System.out.println("\n------------------------------------------------------");
                 System.out.println(fromClient.readLine()); 
                 System.out.println("------------------------------------------------------\n");
-
-                // Reply to client
-                PrintWriter toClient = new PrintWriter(clientSocket.getOutputStream(), true);
-                toClient.println(" * Client message string received by server! *"); 
             }
-
             serverSocket.close(); // Make sure it's closed
         }
         catch (SocketTimeoutException e) {
