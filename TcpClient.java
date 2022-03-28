@@ -1,41 +1,53 @@
 // Client-side
+
 import java.net.*;
 import java.io.*;
 
 public class TcpClient {
+    private static String serverIp = "127.0.0.1";
+    private static int serverPort = 9876; // TCP port on which the server will be listening
+    private static String fileToBeSent = "messageToServer.txt";
+    private static String stringToBeSent = "Hello, World!";
+    private static int bufferSize = 1024; // Client's bytes buffer size
+    private byte[] buffer;
+
     public static void main(String args[]) {
         TcpClient client = new TcpClient();
-        int serverPort = 9876; // TCP port on which the server is listening
-        client.sendFile(serverPort);
-        // client.sendString("Hello, World!", serverPort);
+        // client.sendFile();
+        client.sendString();
     }
-    
-    public void sendFile(int serverPort) {
+
+    public TcpClient() {
+        buffer = new byte[bufferSize];
+    }
+
+    public void sendFile() {
         try {
             // Connect to server
-            String serverAddress = InetAddress.getByName("localhost").getHostAddress();
-            System.out.println("Connecting to server on " + serverAddress + ":" + serverPort);
-            Socket clientSocket = new Socket(serverAddress, serverPort); 
+            System.out.println("* Connecting to server on " + serverIp + ":" + serverPort + " *");
+            Socket clientSocket = new Socket(serverIp, serverPort); 
 
             // Send file to server
-            File fileToServer = new File("messageToServer.txt");
+            InputStream fileInputStream = new FileInputStream(fileToBeSent);
+            OutputStream fileOutputStream = clientSocket.getOutputStream();
+            int bytesToSend = fileInputStream.read(buffer);
 
-            InputStream inputStream = new FileInputStream(fileToServer);
-            OutputStream outputStream = clientSocket.getOutputStream();
-
-            byte[] bytesBuffer = new byte[8196];
-            
-            int bytesToWrite = inputStream.read(bytesBuffer);
-            while (bytesToWrite > 0) {
-                outputStream.write(bytesBuffer, 0, bytesToWrite);
-                bytesToWrite = inputStream.read(bytesBuffer);
+            while (bytesToSend > 0) {
+                fileOutputStream.write(buffer, 0, bytesToSend);
+                bytesToSend = fileInputStream.read(buffer);
             }
 
-            System.out.println("* Message sent to server! * ");
+            System.out.println("* File sent to server! * ");
 
-            outputStream.close();
-            inputStream.close();
+            // Close resources
+            fileOutputStream.close();
+            fileInputStream.close();
             clientSocket.close();
+        }
+        catch(ConnectException e) {
+            System.err.println("\n--------------------------");
+            System.err.println("| Server not available! |");
+            System.err.println("--------------------------");
         }
         catch(UnknownHostException e) {
             e.printStackTrace();
@@ -45,16 +57,16 @@ public class TcpClient {
         } 
     }
 
-    public void sendString(String stringMessage, int serverPort) {
+    public void sendString() {
         try {
             // Connect to server
             String serverAddress = InetAddress.getByName("localhost").getHostAddress();
-            System.out.println("Connecting to server on " + serverAddress + ":" + serverPort);
+            System.out.println(" * Connecting to server on " + serverAddress + ":" + serverPort + " *");
             Socket clientSocket = new Socket(serverAddress, serverPort); 
 
             // Send string
             PrintWriter toServer = new PrintWriter(clientSocket.getOutputStream(), true);
-            toServer.println(stringMessage); 
+            toServer.println(stringToBeSent);
             
             // Server response
             BufferedReader fromServer = new BufferedReader(
@@ -66,6 +78,11 @@ public class TcpClient {
             toServer.close();
             fromServer.close();
             clientSocket.close();
+        }
+        catch(ConnectException e) {
+            System.err.println("\n--------------------------");
+            System.err.println("| Server not available! |");
+            System.err.println("--------------------------");
         }
         catch(UnknownHostException e) {
             e.printStackTrace();
